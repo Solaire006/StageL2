@@ -39,10 +39,14 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f"Done. {total_new} new jobs total."))
 
-    def _fetch(self, url: str) -> str:
-        response = requests.get(url, headers=HEADERS, timeout=15)
-        response.raise_for_status()
-        return response.text
+    def _fetch(self, url: str) -> str | None:
+        try:
+            response = requests.get(url, headers=HEADERS, timeout=15)
+            response.raise_for_status()
+            return response.text
+        except request.RequestException as e:
+            self.stderr.write(self.style.WARNING(f"failed {url}: {e}"))
+            return None 
 
     def _parse(self, html: str) -> list[dict]:
         soup = BeautifulSoup(html, "html.parser")
