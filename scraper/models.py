@@ -19,6 +19,8 @@ class Job(models.Model):
     title = models.CharField(max_length=225)
     description = models.TextField(blank=True)
     location = models.CharField(max_length=225, blank=True)
+    contract_type = models.CharField(max_length=100, blank=True)
+    published_date = models.CharField(max_length=100, blank=True)
     source_url = models.URLField(unique=True)
     scraped_at = models.DateTimeField(auto_now_add=True)
 
