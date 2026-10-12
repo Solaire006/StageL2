@@ -1,3 +1,4 @@
+from django.conf import settings
 import pandas as pd 
 from django.core.management.base import BaseCommand
 from django.utils import timezone
@@ -31,6 +32,12 @@ class Command(BaseCommand):
         )
 
         df = pd.DataFrame(list(qs))
+        if "scraped_at" in df.columns:
+            df["scraped_at"] = (
+                pd.to_datetime(df["scraped_at"])
+                .dt.tz_convert(settings.TIME_ZONE)
+                .dt.tz_localize(None)
+            )
 
         if df.empty:
             self.sdtout.write(self.style.WARNING("No jobs to export."))
