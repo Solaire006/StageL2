@@ -1,0 +1,40 @@
+from django.db import models
+
+# Create your models here.
+class Company(models.Model):
+    name = models.CharField(max_length=225)
+    website = models.URLField(blank=True)
+    description =  models.TextField(blank=True)
+    location = models.CharField(max_length=225, blank=True)
+
+    class Meta:
+        verbose_name_plural = "Companies"
+        unique_together = [('name', 'website')]
+
+    def __str__(self):
+        return self.name
+
+class Job(models.Model):
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="jobs")
+    title = models.CharField(max_length=225)
+    description = models.TextField(blank=True)
+    location = models.CharField(max_length=225, blank=True)
+    contract_type = models.CharField(max_length=100, blank=True)
+    published_date = models.CharField(max_length=100, blank=True)
+    # --- detail page fields ---
+    missions = models.TextField(blank=True)
+    requirements = models.TextField(blank=True)  # profil / qualifications
+    skills = models.TextField(blank=True)        # one skill per line
+    detail_scraped_at = models.DateTimeField(null=True, blank=True)
+    source_url = models.URLField(unique=True)
+    scraped_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-scraped_at']
+
+    def __str__(self):
+        return f"{self.title} @ {self.company.name}"
+
+    @property
+    def skills_list(self):
+        return [s.strip() for s in self.skills.splitlines() if s.strip()]

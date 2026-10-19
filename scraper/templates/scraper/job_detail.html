@@ -1,0 +1,20 @@
+{% extends "scraper/base.html" %}
+{% block title %}{{ job.title }}{% endblock %}
+{% block content %}
+<p><a href="{% url 'scraper:job_list' %}">← Retour aux offres</a></p>
+<h1 style="margin:0 0 4px">{{ job.title }}</h1>
+<div class="meta">{{ job.company.name }}{% if job.location %} · {{ job.location }}{% endif %}{% if job.published_date %} · {{ job.published_date }}{% endif %}</div>
+{% if job.contract_type %}<span class="tag contract">{{ job.contract_type }}</span>{% endif %}
+
+{% if job.skills_list %}
+<section class="block"><h2>Compétences requises</h2>
+  {% for skill in job.skills_list %}<span class="tag">{{ skill }}</span>{% endfor %}
+</section>
+{% endif %}
+{% if job.missions %}<section class="block"><h2>Missions</h2><div class="text">{{ job.missions }}</div></section>{% endif %}
+{% if job.requirements %}<section class="block"><h2>Profil recherché</h2><div class="text">{{ job.requirements }}</div></section>{% endif %}
+{% if job.description %}<section class="block"><h2>Description</h2><div class="text">{{ job.description }}</div></section>
+{% elif not job.detail_scraped_at %}<section class="block meta">Les détails de cette offre n'ont pas encore été récupérés.</section>{% endif %}
+
+<p style="margin-top:18px"><a class="btn" href="{{ job.source_url }}" target="_blank" rel="noopener">Voir l'offre originale ↗</a></p>
+{% endblock %}
