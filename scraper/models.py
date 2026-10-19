@@ -21,6 +21,11 @@ class Job(models.Model):
     location = models.CharField(max_length=225, blank=True)
     contract_type = models.CharField(max_length=100, blank=True)
     published_date = models.CharField(max_length=100, blank=True)
+    # --- detail page fields ---
+    missions = models.TextField(blank=True)
+    requirements = models.TextField(blank=True)  # profil / qualifications
+    skills = models.TextField(blank=True)        # one skill per line
+    detail_scraped_at = models.DateTimeField(null=True, blank=True)
     source_url = models.URLField(unique=True)
     scraped_at = models.DateTimeField(auto_now_add=True)
 
@@ -29,3 +34,7 @@ class Job(models.Model):
 
     def __str__(self):
         return f"{self.title} @ {self.company.name}"
+
+    @property
+    def skills_list(self):
+        return [s.strip() for s in self.skills.splitlines() if s.strip()]

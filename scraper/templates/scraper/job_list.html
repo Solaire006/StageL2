@@ -1,0 +1,32 @@
+{% extends "scraper/base.html" %}
+{% block content %}
+<form class="filters" method="get">
+  <input type="search" name="q" value="{{ q }}" placeholder="Titre, entreprise, compétence…">
+  <input type="text" name="location" value="{{ location }}" placeholder="Lieu">
+  <select name="contract">
+    <option value="">Tous les contrats</option>
+    {% for c in contracts %}<option value="{{ c }}" {% if c == contract %}selected{% endif %}>{{ c }}</option>{% endfor %}
+  </select>
+  <button type="submit">Filtrer</button>
+</form>
+<div class="count">{{ total }} offre{{ total|pluralize }}</div>
+
+{% for job in page %}
+  <a class="card" href="{% url 'scraper:job_detail' job.pk %}">
+    <h2>{{ job.title }}</h2>
+    <div class="meta">{{ job.company.name }}{% if job.location %} · {{ job.location }}{% endif %}{% if job.published_date %} · {{ job.published_date }}{% endif %}</div>
+    {% if job.contract_type %}<span class="tag contract">{{ job.contract_type }}</span>{% endif %}
+    {% for skill in job.skills_list|slice:":5" %}<span class="tag">{{ skill }}</span>{% endfor %}
+  </a>
+{% empty %}
+  <div class="empty">Aucune offre. Lancez <code>python manage.py scrape_recruteomg</code> ou modifiez les filtres.</div>
+{% endfor %}
+
+{% if page.paginator.num_pages > 1 %}
+<div class="pager">
+  {% if page.has_previous %}<a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.previous_page_number }}">← Précédent</a>{% else %}<span></span>{% endif %}
+  <span class="meta">Page {{ page.number }} / {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.next_page_number }}">Suivant →</a>{% else %}<span></span>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

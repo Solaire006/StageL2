@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Offres d'emploi{% endblock %}</title>
+  <style>
+    :root { --bg:#f6f7f9; --card:#fff; --text:#1c2330; --muted:#667085; --line:#e4e7ec; --accent:#2f5fd0; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#12151b; --card:#1b2029; --text:#e8ebf0; --muted:#98a2b3; --line:#2a313d; --accent:#7ea2ff; }
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); }
+    a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+    .wrap { max-width:960px; margin:0 auto; padding:0 16px; }
+    header.top { background:var(--card); border-bottom:1px solid var(--line); padding:14px 0; }
+    header.top a { color:var(--text); font-weight:700; font-size:1.1rem; }
+    main { padding:24px 0 48px; }
+    .filters { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+    .filters input, .filters select, .filters button { font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--text); }
+    .filters input[name=q] { flex:2 1 220px; } .filters input[name=location] { flex:1 1 140px; }
+    .filters button { background:var(--accent); color:#fff; border-color:var(--accent); cursor:pointer; }
+    .count { color:var(--muted); font-size:.9rem; margin-bottom:12px; }
+    .card { display:block; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:10px; color:inherit; }
+    .card:hover { border-color:var(--accent); text-decoration:none; }
+    .card h2 { margin:0 0 2px; font-size:1.05rem; }
+    .meta { color:var(--muted); font-size:.9rem; }
+    .tag { display:inline-block; font-size:.78rem; padding:2px 8px; border-radius:999px; background:var(--bg); border:1px solid var(--line); margin:6px 6px 0 0; }
+    .tag.contract { border-color:var(--accent); color:var(--accent); }
+    .pager { display:flex; justify-content:space-between; align-items:center; margin-top:16px; }
+    section.block { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-top:14px; }
+    section.block h2 { margin:0 0 8px; font-size:1rem; }
+    .text { white-space:pre-line; }
+    .empty { text-align:center; color:var(--muted); padding:40px 0; }
+    .btn { display:inline-block; background:var(--accent); color:#fff; padding:8px 14px; border-radius:8px; }
+  </style>
+</head>
+<body>
+  <header class="top"><div class="wrap"><a href="{% url 'scraper:job_list' %}">Offres d'emploi</a></div></header>
+  <main><div class="wrap">{% block content %}{% endblock %}</div></main>
+</body>
+</html>
