@@ -25,6 +25,10 @@ class Command(BaseCommand):
     help = "scrape jobs from recruteo.mg"
 
     def add_arguments(self, parser):
+        parser.add_argument("--max-pages", type=int, default=1,
+                            help="Number of listing pages to scrape (default 1).")
+        parser.add_argument("--page-param", type=str, default="page",
+                            help="Query-string parameter used for pagination (default 'page').")
         parser.add_argument("--no-details", action="store_true",
                             help="Only scrape the listing page, skip detail pages.")
         parser.add_argument("--refresh-details", action="store_true",
@@ -33,12 +37,11 @@ class Command(BaseCommand):
                             help="Seconds to wait between detail requests (default 1).")
 
     def handle(self, *args, **options):
-        self.stdout.write(f"fetching {JOBS}")
-        html = self._fetch(JOBS)
-        if html is None:
+        jobs = self._scrape_listing(options["max_pages"], options["page_param"])
+        if not jobs:
+            self.stderr.write(self.style.WARNING("no jobs found."))
             return
-        jobs = self._parse(html)
-        self.stdout.write(f"{len(jobs)} jobs found on listing page")
+        self.stdout.write(f"{len(jobs)} jobs found")
         saved = self._save(jobs)
         self.stdout.write(self.style.SUCCESS(f"{saved} new jobs saved."))
 
@@ -49,6 +52,24 @@ class Command(BaseCommand):
                 delay=options["delay"],
             )
             self.stdout.write(self.style.SUCCESS(f"details scraped for {done} jobs."))
+
+    def _scrape_listing(self, max_pages: int, page_param: str) -> list[dict]:
+        """Walk the listing pages; stop at max_pages or when a page adds nothing new."""
+        seen, jobs = set(), []
+        for page in range(1, max_pages + 1):
+            url = JOBS if page == 1 else f"{JOBS}&{page_param}={page}"
+            self.stdout.write(f"fetching {url}")
+            html = self._fetch(url)
+            if html is None:
+                break
+            fresh = [j for j in self._parse(html) if j["source_url"] not in seen]
+            if not fresh:
+                break  # empty page, or the site ignored our page parameter
+            seen.update(j["source_url"] for j in fresh)
+            jobs.extend(fresh)
+            if page < max_pages:
+                time.sleep(1)
+        return jobs
 
     def _fetch(self, url: str) -> str | None:
         try:

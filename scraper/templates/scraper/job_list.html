@@ -1,5 +1,21 @@
 {% extends "scraper/base.html" %}
 {% block content %}
+<div class="toolbar">
+  <form method="post" action="{% url 'scraper:start_scrape' %}">
+    {% csrf_token %}
+    <label class="meta" for="pages">Pages</label>
+    <select name="pages" id="pages">
+      <option>1</option><option>2</option><option>3</option><option>5</option><option>10</option>
+    </select>
+    <button class="primary" type="submit" {% if scrape.running %}disabled{% endif %}>
+      {% if scrape.running %}Scraping en cours…{% else %}Lancer le scraping{% endif %}
+    </button>
+  </form>
+  <a class="btn" href="{% url 'scraper:export' %}{% if querystring %}?{{ querystring }}{% endif %}">⬇ Exporter en Excel</a>
+</div>
+{% if scrape.message and not scrape.running %}
+  <div class="msg {% if scrape.ok %}success{% else %}warning{% endif %}">Dernier scraping : {{ scrape.message }}</div>
+{% endif %}
 <form class="filters" method="get">
   <input type="search" name="q" value="{{ q }}" placeholder="Titre, entreprise, compétence…">
   <input type="text" name="location" value="{{ location }}" placeholder="Lieu">
@@ -30,3 +46,14 @@
 </div>
 {% endif %}
 {% endblock %}
+{% block scripts %}{% if scrape.running %}
+<script>
+  // While a scrape runs, poll its status and reload the list when it ends.
+  const t = setInterval(async () => {
+    try {
+      const r = await fetch("{% url 'scraper:scrape_status' %}");
+      if (!(await r.json()).running) { clearInterval(t); location.reload(); }
+    } catch (e) {}
+  }, 2000);
+</script>
+{% endif %}{% endblock %}

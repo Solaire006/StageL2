@@ -94,3 +94,117 @@ class ScrapeExportUiTests(TestCase):
         r = self.client.get(reverse("scraper:job_detail", args=[job.pk]))
         self.assertContains(r, "Compétences requises")
         self.assertEqual(self.client.get(reverse("scraper:job_detail", args=[999])).status_code, 404)
+
+
+def _card(n, title, company="Acme"):
+    return (f'<a href="/offres/annonce/{n}-x"><span class="truncate text-sm font-semibold">{company}</span>'
+            f'<h3>{title}</h3></a>')
+
+
+PAGES = {
+    "1": _card(1, "Job 1") + _card(2, "Job 2"),
+    "2": _card(3, "Job 3"),
+    "3": _card(3, "Job 3"),  # site repeats the last page -> scraper must stop
+}
+
+
+def paged_get(url, **kw):
+    r = mock.Mock()
+    r.raise_for_status = lambda: None
+    if "annonce" in url:
+        r.text = DETAIL_HEADINGS
+    else:
+        r.text = PAGES.get(url.rsplit("page=", 1)[-1] if "page=" in url else "1", "")
+    return r
+
+
+@mock.patch("scraper.management.commands.scrape_recruteomg.time.sleep")
+@mock.patch("scraper.management.commands.scrape_recruteomg.requests.get", side_effect=paged_get)
+class PaginationTests(TestCase):
+    def test_walks_pages_and_stops_on_repeat(self, get, sleep):
+        call_command("scrape_recruteomg", max_pages=5, no_details=True)
+        self.assertEqual(Job.objects.count(), 3)
+        listing_calls = [c for c in get.call_args_list if "annonce" not in c.args[0]]
+        self.assertEqual(len(listing_calls), 3)  # pages 1, 2, then 3 (repeat) -> stop
+
+    def test_default_is_one_page(self, get, sleep):
+        call_command("scrape_recruteomg", no_details=True)
+        self.assertEqual(Job.objects.count(), 2)
+
+
+class UiActionTests(TestCase):
+    def setUp(self):
+        c = Company.objects.create(name="Acme")
+        Job.objects.create(company=c, title="Dev", contract_type="CDI", source_url="https://x.test/1")
+        Job.objects.create(company=c, title="Ops", contract_type="CDD", source_url="https://x.test/2")
+
+    def test_export_download_respects_filters(self):
+        r = self.client.get(reverse("scraper:export"), {"contract": "CDI"})
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("spreadsheetml", r["Content-Type"])
+        self.assertIn("attachment", r["Content-Disposition"])
+        path = os.path.join(tempfile.mkdtemp(), "d.xlsx")
+        open(path, "wb").write(r.content)
+        self.assertEqual(list(pd.read_excel(path)["Job Title"]), ["Dev"])
+
+    def test_export_empty_redirects(self):
+        r = self.client.get(reverse("scraper:export"), {"q": "nomatch"})
+        self.assertRedirects(r, reverse("scraper:job_list"))
+
+    def test_start_scrape_requires_post(self):
+        self.assertEqual(self.client.get(reverse("scraper:start_scrape")).status_code, 405)
+
+    @mock.patch("scraper.views.runner.start_scrape", return_value=True)
+    def test_start_scrape_clamps_pages(self, start):
+        r = self.client.post(reverse("scraper:start_scrape"), {"pages": "999"})
+        self.assertRedirects(r, reverse("scraper:job_list"))
+        start.assert_called_once_with(max_pages=10)
+
+    @mock.patch("scraper.views.runner.start_scrape", return_value=False)
+    def test_start_scrape_already_running(self, start):
+        r = self.client.post(reverse("scraper:start_scrape"), {"pages": "2"}, follow=True)
+        self.assertContains(r, "déjà en cours")
+
+    def test_status_endpoint(self):
+        self.assertIn("running", self.client.get(reverse("scraper:scrape_status")).json())
+
+
+class RunnerTests(TestCase):
+    @mock.patch("scraper.runner.connection")
+    @mock.patch("scraper.runner.call_command")
+    def test_run_success_and_failure(self, cmd, conn):
+        from scraper import runner
+        runner._state.update(running=True)
+        runner._run(1)
+        s = runner.get_state()
+        self.assertFalse(s["running"]); self.assertTrue(s["ok"])
+
+        cmd.side_effect = RuntimeError("boom")
+        runner._state.update(running=True)
+        runner._run(1)
+        s = runner.get_state()
+        self.assertFalse(s["ok"]); self.assertIn("boom", s["message"])
+
+    @mock.patch("scraper.runner.threading.Thread")
+    def test_only_one_at_a_time(self, thread):
+        from scraper import runner
+        runner._state.update(running=False)
+        self.assertTrue(runner.start_scrape(1))
+        self.assertFalse(runner.start_scrape(1))  # second call refused while running
+        runner._state.update(running=False)
+
+
+class RunningStateUiTest(TestCase):
+    def test_list_shows_running_state_and_polls(self):
+        from scraper import runner
+        runner._state.update(running=True, message="")
+        try:
+            r = self.client.get(reverse("scraper:job_list"))
+            self.assertContains(r, "Scraping en cours")
+            self.assertContains(r, "setInterval")
+            self.assertContains(r, "disabled")
+        finally:
+            runner._state.update(running=False)
+        r = self.client.get(reverse("scraper:job_list"))
+        self.assertContains(r, "Lancer le scraping")
+        self.assertNotContains(r, "setInterval")

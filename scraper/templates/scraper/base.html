@@ -32,11 +32,21 @@
     section.block h2 { margin:0 0 8px; font-size:1rem; }
     .text { white-space:pre-line; }
     .empty { text-align:center; color:var(--muted); padding:40px 0; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 14px; margin-bottom:14px; }
+    .toolbar form { display:flex; gap:8px; align-items:center; margin:0; }
+    .toolbar select, .toolbar button { font:inherit; padding:6px 10px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--text); }
+    .toolbar button.primary { background:var(--accent); color:#fff; border-color:var(--accent); cursor:pointer; }
+    .toolbar button:disabled { opacity:.6; cursor:wait; }
+    .msg { padding:10px 14px; border-radius:8px; margin-bottom:12px; background:var(--card); border:1px solid var(--line); }
+    .msg.success { border-color:#2e9d6a; } .msg.warning, .msg.error { border-color:#d9822b; }
     .btn { display:inline-block; background:var(--accent); color:#fff; padding:8px 14px; border-radius:8px; }
   </style>
 </head>
 <body>
   <header class="top"><div class="wrap"><a href="{% url 'scraper:job_list' %}">Offres d'emploi</a></div></header>
-  <main><div class="wrap">{% block content %}{% endblock %}</div></main>
+  <main><div class="wrap">
+    {% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}
+    {% block content %}{% endblock %}</div></main>
+  {% block scripts %}{% endblock %}
 </body>
 </html>
