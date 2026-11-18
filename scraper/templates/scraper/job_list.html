@@ -1,6 +1,7 @@
-{% extends "scraper/base.html" %}
+{% extends "base.html" %}
 {% block content %}
 <div class="toolbar">
+  {% if user.is_staff %}
   <form method="post" action="{% url 'scraper:start_scrape' %}">
     {% csrf_token %}
     <label class="meta" for="pages">Pages</label>
@@ -11,6 +12,7 @@
       {% if scrape.running %}Scraping en cours…{% else %}Lancer le scraping{% endif %}
     </button>
   </form>
+  {% else %}<span class="meta">Connecté en tant que {{ user.username }}</span>{% endif %}
   <a class="btn" href="{% url 'scraper:export' %}{% if querystring %}?{{ querystring }}{% endif %}">⬇ Exporter en Excel</a>
 </div>
 {% if scrape.message and not scrape.running %}

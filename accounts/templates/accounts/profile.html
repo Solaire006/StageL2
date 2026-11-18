@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Mon profil{% endblock %}
+{% block content %}
+<div class="auth-card wide">
+  <h1>Mon profil</h1>
+  <form method="post">{% csrf_token %}
+    <div class="meta" style="margin-bottom:12px">Identifiant : <strong>{{ user.username }}</strong></div>
+    {% include "accounts/_form.html" with form=user_form %}
+    {% include "accounts/_form.html" with form=profile_form %}
+    <button class="primary" type="submit">Enregistrer</button>
+  </form>
+  <div class="auth-links"><a href="{% url 'accounts:password_change' %}">Changer mon mot de passe</a></div>
+</div>
+{% endblock %}

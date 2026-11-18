@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Compte temporairement bloqué{% endblock %}
+{% block content %}
+<div class="auth-card">
+  <h1>Trop de tentatives</h1>
+  <p>Après {{ failure_limit }} échecs de connexion, l'accès est bloqué pendant quelques minutes pour protéger le compte. Réessayez plus tard ou
+     <a href="{% url 'accounts:password_reset' %}">réinitialisez votre mot de passe</a>.</p>
+</div>
+{% endblock %}

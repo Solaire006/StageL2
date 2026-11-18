@@ -3,12 +3,22 @@ import tempfile
 from unittest import mock
 
 import pandas as pd
+from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 
 from scraper.models import Company, Job
 from scraper.parsers import parse_detail
+
+User = get_user_model()
+
+
+def login_staff(testcase):
+    """Log the test client in as a staff user (can view and start scrapes)."""
+    user = User.objects.create_user("staff", password="pw-12345-xyz", is_staff=True)
+    testcase.client.force_login(user)
+    return user
 
 LISTING = """
 <a href="/offres/annonce/1-dev"><span class="truncate text-sm font-semibold">Acme</span>
@@ -56,6 +66,9 @@ def fake_get(url, **kw):
 @mock.patch("scraper.management.commands.scrape_recruteomg.time.sleep")
 @mock.patch("scraper.management.commands.scrape_recruteomg.requests.get", side_effect=fake_get)
 class ScrapeExportUiTests(TestCase):
+    def setUp(self):
+        login_staff(self)
+
     def test_scrape_counts_and_details(self, get, sleep):
         call_command("scrape_recruteomg")
         self.assertEqual(Job.objects.count(), 2)  # both new jobs saved
@@ -134,6 +147,7 @@ class PaginationTests(TestCase):
 
 class UiActionTests(TestCase):
     def setUp(self):
+        login_staff(self)
         c = Company.objects.create(name="Acme")
         Job.objects.create(company=c, title="Dev", contract_type="CDI", source_url="https://x.test/1")
         Job.objects.create(company=c, title="Ops", contract_type="CDD", source_url="https://x.test/2")
@@ -195,6 +209,9 @@ class RunnerTests(TestCase):
 
 
 class RunningStateUiTest(TestCase):
+    def setUp(self):
+        login_staff(self)
+
     def test_list_shows_running_state_and_polls(self):
         from scraper import runner
         runner._state.update(running=True, message="")

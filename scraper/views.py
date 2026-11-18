@@ -1,6 +1,8 @@
 import io
 
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
@@ -32,6 +34,7 @@ def _filtered_jobs(params):
     return qs, q, contract, location
 
 
+@login_required
 def job_list(request):
     qs, q, contract, location = _filtered_jobs(request.GET)
     page = Paginator(qs, 20).get_page(request.GET.get("page"))
@@ -48,11 +51,13 @@ def job_list(request):
     })
 
 
+@login_required
 def job_detail(request, pk):
     job = get_object_or_404(Job.objects.select_related("company"), pk=pk)
     return render(request, "scraper/job_detail.html", {"job": job})
 
 
+@login_required
 def export_excel(request):
     """Download the jobs matching the current filters as .xlsx."""
     qs, *_ = _filtered_jobs(request.GET)
@@ -70,8 +75,12 @@ def export_excel(request):
     return resp
 
 
+@login_required
 @require_POST
 def start_scrape(request):
+    # Scraping hits an external site: only staff may trigger it.
+    if not request.user.is_staff:
+        raise PermissionDenied
     try:
         pages = max(1, min(int(request.POST.get("pages", 1)), MAX_UI_PAGES))
     except ValueError:
@@ -83,6 +92,7 @@ def start_scrape(request):
     return redirect("scraper:job_list")
 
 
+@login_required
 def scrape_status(request):
     state = runner.get_state()
     state = {k: (v.isoformat() if hasattr(v, "isoformat") else v) for k, v in state.items()}
