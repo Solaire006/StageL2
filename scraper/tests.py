@@ -78,8 +78,8 @@ class ScrapeExportUiTests(TestCase):
         self.assertEqual(job.skills_list, ["Python", "SQL"])
         self.assertIsNotNone(job.detail_scraped_at)
         n_calls = get.call_count
-        call_command("scrape_recruteomg")  # details already there -> only listing refetched
-        self.assertEqual(get.call_count, n_calls + 1)
+        call_command("scrape_recruteomg")  # details already there -> only robots.txt + listing refetched
+        self.assertEqual(get.call_count, n_calls + 2)
         self.assertEqual(Job.objects.count(), 2)
 
     def test_export(self, get, sleep):
@@ -137,7 +137,8 @@ class PaginationTests(TestCase):
     def test_walks_pages_and_stops_on_repeat(self, get, sleep):
         call_command("scrape_recruteomg", max_pages=5, no_details=True)
         self.assertEqual(Job.objects.count(), 3)
-        listing_calls = [c for c in get.call_args_list if "annonce" not in c.args[0]]
+        listing_calls = [c for c in get.call_args_list
+                         if "annonce" not in c.args[0] and "robots.txt" not in c.args[0]]
         self.assertEqual(len(listing_calls), 3)  # pages 1, 2, then 3 (repeat) -> stop
 
     def test_default_is_one_page(self, get, sleep):
@@ -225,3 +226,53 @@ class RunningStateUiTest(TestCase):
         r = self.client.get(reverse("scraper:job_list"))
         self.assertContains(r, "Lancer le scraping")
         self.assertNotContains(r, "setInterval")
+
+
+class RobotsTxtTests(TestCase):
+    def test_disallowed_pages_are_not_fetched(self):
+        def get(url, **kw):
+            r = mock.Mock(status_code=200)
+            r.raise_for_status = lambda: None
+            r.text = "User-agent: *\nDisallow: /offres\n" if url.endswith("robots.txt") else LISTING
+            return r
+        with mock.patch("scraper.management.commands.scrape_recruteomg.requests.get",
+                        side_effect=get) as g:
+            call_command("scrape_recruteomg", no_details=True)
+        self.assertEqual(Job.objects.count(), 0)
+        self.assertEqual([c.args[0] for c in g.call_args_list], ["https://recruteo.mg/robots.txt"])
+
+
+class ExcelFormulaInjectionTests(TestCase):
+    def test_scraped_formula_is_exported_as_plain_text(self):
+        import openpyxl
+        c = Company.objects.create(name="=1+1")
+        Job.objects.create(company=c, title='=HYPERLINK("http://evil.test","clic")',
+                           source_url="https://x.test/evil")
+        path = os.path.join(tempfile.mkdtemp(), "e.xlsx")
+        call_command("export_jobs", output=path)
+        ws = openpyxl.load_workbook(path).active
+        cells = [cell for row in ws.iter_rows(min_row=2) for cell in row]
+        self.assertFalse([cell.coordinate for cell in cells if cell.data_type == "f"])
+        self.assertIn('=HYPERLINK("http://evil.test","clic")', [cell.value for cell in cells])
+
+
+class DeploymentTests(TestCase):
+    def test_healthz_is_public(self):
+        r = self.client.get("/healthz/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.content, b"ok")
+
+    def test_custom_404_page(self):
+        r = self.client.get("/does-not-exist/")
+        self.assertEqual(r.status_code, 404)
+        self.assertContains(r, "Page introuvable", status_code=404)
+
+    def test_production_refuses_to_start_without_secret_key(self):
+        import subprocess, sys
+        from django.conf import settings
+        env = {**os.environ, "DJANGO_DEBUG": "0", "DJANGO_SECRET_KEY": "",
+               "DJANGO_LOG_DIR": tempfile.mkdtemp()}
+        r = subprocess.run([sys.executable, "manage.py", "check"], cwd=settings.BASE_DIR,
+                           env=env, capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("DJANGO_SECRET_KEY must be set", r.stderr)

@@ -15,6 +15,8 @@ import sys
 from datetime import timedelta
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -30,15 +32,21 @@ def env_list(name):
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-# In production set DJANGO_SECRET_KEY (never commit the real one).
-SECRET_KEY = os.environ.get(
-    'DJANGO_SECRET_KEY',
-    'django-insecure-dev-only-key-change-me',
-)
-
 # SECURITY WARNING: don't run with debug turned on in production!
+# Debug stays on by default so `runserver` works out of the box on a laptop.
+# The systemd unit in deploy/ forces DJANGO_DEBUG=0 on the server.
 DEBUG = env_bool('DJANGO_DEBUG', True)
+
+# SECURITY WARNING: keep the secret key used in production secret!
+# The fallback key is only accepted in debug mode: in production the app
+# refuses to start without a real DJANGO_SECRET_KEY.
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '')
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured(
+            'DJANGO_SECRET_KEY must be set when DJANGO_DEBUG=0. Generate one with: '
+            'python -c "import secrets; print(secrets.token_urlsafe(50))"')
+    SECRET_KEY = 'django-insecure-dev-only-key-change-me'
 
 ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS')
 
@@ -95,7 +103,12 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        # On the server the database lives outside the code folder
+        # (e.g. /var/lib/jobsapp/db.sqlite3) so a `git pull` never touches it.
+        'NAME': os.environ.get('DJANGO_DB_PATH', BASE_DIR / 'db.sqlite3'),
+        # Wait up to 20 s instead of failing with "database is locked" when the
+        # scheduled scrape and a user write at the same moment.
+        'OPTIONS': {'timeout': 20},
     }
 }
 
@@ -124,7 +137,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'fr'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Indian/Antananarivo'
 
 USE_I18N = True
 
@@ -135,6 +148,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = 'static/'
+# `python manage.py collectstatic` copies every CSS/JS file here; Nginx serves them.
+STATIC_ROOT = Path(os.environ.get('DJANGO_STATIC_ROOT', BASE_DIR / 'staticfiles'))
 
 
 # Email
@@ -187,6 +202,8 @@ if BEHIND_PROXY:
 if env_bool('DJANGO_HTTPS', False):
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = True                 # http:// -> https://
+    SECURE_REDIRECT_EXEMPT = [r'^healthz/$']   # monitoring may call plain HTTP locally
     SECURE_HSTS_SECONDS = int(os.environ.get('DJANGO_HSTS_SECONDS', '0'))
 CSRF_TRUSTED_ORIGINS = env_list('DJANGO_CSRF_TRUSTED_ORIGINS')  # e.g. https://jobs.lab.local
 
@@ -194,7 +211,12 @@ CSRF_TRUSTED_ORIGINS = env_list('DJANGO_CSRF_TRUSTED_ORIGINS')  # e.g. https://j
 # Logging: a dedicated security log that fail2ban / a log server can read.
 # ------------------------------------------------------------------
 LOG_DIR = Path(os.environ.get('DJANGO_LOG_DIR', BASE_DIR / 'logs'))
-LOG_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+except OSError as exc:
+    raise ImproperlyConfigured(
+        f'Cannot create the log folder {LOG_DIR} ({exc}). Create it and give the app '
+        f'user write access, or point DJANGO_LOG_DIR somewhere writable.') from exc
 
 LOGGING = {
     'version': 1,
@@ -217,6 +239,13 @@ LOGGING = {
         'security': {'handlers': ['security_file', 'console'], 'level': 'INFO', 'propagate': False},
     },
 }
+
+
+# Scraper
+# ------------------------------------------------------------------
+# Identify the bot honestly so site owners can reach us.
+SCRAPER_CONTACT = os.environ.get('SCRAPER_CONTACT', 'https://github.com/Solaire006/StageL2')
+SCRAPER_USER_AGENT = f'Mozilla/5.0 (compatible; StageL2JobBot/0.2; +{SCRAPER_CONTACT})'
 
 
 # Faster, quieter test runs (python manage.py test)

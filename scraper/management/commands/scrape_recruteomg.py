@@ -1,8 +1,10 @@
 import time
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
+from urllib.robotparser import RobotFileParser
 
 import requests
 from bs4 import BeautifulSoup
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
@@ -14,10 +16,7 @@ from scraper.parsers import parse_detail
 BASE_URL = "https://recruteo.mg"
 JOBS = "https://recruteo.mg/offres?recruteurs=1"
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Compatible; JobAutomatorBot/0.1; "
-        "+https://github.com/your-team/job-automator)"
-    ),
+    "User-Agent": settings.SCRAPER_USER_AGENT,  # set in config/settings.py
     "Accept-Language" : "fr-FR,fr;q=0.9,en;q=0.8",
 }
 
@@ -37,6 +36,7 @@ class Command(BaseCommand):
                             help="Seconds to wait between detail requests (default 1).")
 
     def handle(self, *args, **options):
+        self._robots = {}  # one robots.txt per site, fetched once per run
         jobs = self._scrape_listing(options["max_pages"], options["page_param"])
         if not jobs:
             self.stderr.write(self.style.WARNING("no jobs found."))
@@ -71,7 +71,25 @@ class Command(BaseCommand):
                 time.sleep(1)
         return jobs
 
+    def _allowed(self, url: str) -> bool:
+        """Respect the site's robots.txt. If it can't be read (404, network
+        error) we assume everything is allowed, as browsers and search engines do."""
+        parts = urlsplit(url)
+        site = f"{parts.scheme}://{parts.netloc}"
+        if site not in self._robots:
+            rp = RobotFileParser()
+            try:
+                r = requests.get(f"{site}/robots.txt", headers=HEADERS, timeout=10)
+                rp.parse(r.text.splitlines() if r.status_code == 200 else [])
+            except requests.RequestException:
+                rp.parse([])
+            self._robots[site] = rp
+        return self._robots[site].can_fetch(HEADERS["User-Agent"], url)
+
     def _fetch(self, url: str) -> str | None:
+        if not self._allowed(url):
+            self.stderr.write(self.style.WARNING(f"skipped {url}: disallowed by robots.txt"))
+            return None
         try:
             response = requests.get(url, headers=HEADERS, timeout=15)
             response.raise_for_status()

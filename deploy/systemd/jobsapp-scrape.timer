@@ -1,0 +1,15 @@
+# /etc/systemd/system/jobsapp-scrape.timer
+# Runs the scraper every day at 07:00 and 14:00 (server time).
+# Check it with: systemctl list-timers jobsapp-scrape.timer
+[Unit]
+Description=StageL2 - scheduled scraping
+
+[Timer]
+OnCalendar=*-*-* 07,14:00:00
+# spread the start a little so we don't hit the site at an exact round hour
+RandomizedDelaySec=10min
+# if the server was off at 07:00, run once when it starts again
+Persistent=true
+
+[Install]
+WantedBy=timers.target

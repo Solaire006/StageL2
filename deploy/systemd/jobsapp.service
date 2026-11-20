@@ -1,0 +1,29 @@
+# /etc/systemd/system/jobsapp.service
+# Runs the Django app with Gunicorn, starts it at boot and restarts it if it crashes.
+[Unit]
+Description=StageL2 job board (Gunicorn)
+After=network.target
+
+[Service]
+User=jobsapp
+Group=jobsapp
+WorkingDirectory=/srv/jobsapp/app
+EnvironmentFile=/etc/jobsapp/jobsapp.env
+# DJANGO_DEBUG=0 is forced here so a typo in the env file can never turn debug mode on.
+# --workers 1: the "Lancer le scraping" button keeps its status in memory, which
+#   only works with a single process. --threads 4 still serves several users at once.
+ExecStart=/usr/bin/env DJANGO_DEBUG=0 /srv/jobsapp/venv/bin/gunicorn config.wsgi:application \
+    --bind 127.0.0.1:8000 --workers 1 --threads 4 --timeout 60 \
+    --access-logfile - --error-logfile -
+Restart=on-failure
+RestartSec=5
+
+# Hardening: the app can only write to its data and log folders.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/jobsapp /var/log/jobsapp
+
+[Install]
+WantedBy=multi-user.target

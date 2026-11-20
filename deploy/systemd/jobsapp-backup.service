@@ -1,0 +1,13 @@
+# /etc/systemd/system/jobsapp-backup.service
+[Unit]
+Description=StageL2 - database backup
+
+[Service]
+Type=oneshot
+User=jobsapp
+Group=jobsapp
+ExecStart=/srv/jobsapp/venv/bin/python /srv/jobsapp/app/deploy/backup_db.py /var/lib/jobsapp/db.sqlite3 /var/lib/jobsapp/backups
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/jobsapp

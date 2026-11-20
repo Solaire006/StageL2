@@ -15,9 +15,26 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+from django.db import connection
+from django.http import HttpResponse
 from django.urls import include, path
+from django.views.decorators.cache import never_cache
+
+
+@never_cache
+def healthz(request):
+    """Used by monitoring / the deploy checklist: 200 "ok" if the app and its
+    database answer, 503 otherwise. No login needed, reveals nothing."""
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+    except Exception:
+        return HttpResponse("database unavailable", status=503, content_type="text/plain")
+    return HttpResponse("ok", content_type="text/plain")
+
 
 urlpatterns = [
+    path('healthz/', healthz, name='healthz'),
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
     path('', include('scraper.urls')),

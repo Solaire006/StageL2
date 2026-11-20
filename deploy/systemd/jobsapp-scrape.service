@@ -1,0 +1,20 @@
+# /etc/systemd/system/jobsapp-scrape.service
+# One scraping run. Started automatically by jobsapp-scrape.timer,
+# or by hand with: sudo systemctl start jobsapp-scrape
+[Unit]
+Description=StageL2 - scrape recruteo.mg
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=jobsapp
+Group=jobsapp
+WorkingDirectory=/srv/jobsapp/app
+EnvironmentFile=/etc/jobsapp/jobsapp.env
+ExecStart=/usr/bin/env DJANGO_DEBUG=0 /srv/jobsapp/venv/bin/python manage.py scrape_recruteomg --max-pages 3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/jobsapp /var/log/jobsapp

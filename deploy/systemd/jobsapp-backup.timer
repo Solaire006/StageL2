@@ -1,0 +1,10 @@
+# /etc/systemd/system/jobsapp-backup.timer  - nightly database backup
+[Unit]
+Description=StageL2 - nightly database backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

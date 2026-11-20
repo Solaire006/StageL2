@@ -37,7 +37,20 @@ def write_workbook(df: pd.DataFrame, target) -> None:
     with pd.ExcelWriter(target, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="Jobs")
         ws = writer.sheets["Jobs"]
+        _neutralise_formulas(ws)
         ws.freeze_panes = "A2"
         for cells in ws.columns:
             longest = max((len(str(c.value)) for c in cells if c.value), default=8)
             ws.column_dimensions[cells[0].column_letter].width = min(longest + 2, 60)
+
+
+def _neutralise_formulas(ws) -> None:
+    """Scraped text comes from other websites and cannot be trusted. openpyxl
+    turns any string starting with "=" into a live Excel formula (e.g.
+    =HYPERLINK(...) or =WEBSERVICE(...)). Force those cells back to plain text;
+    `quotePrefix` makes Excel display them exactly as scraped."""
+    for row in ws.iter_rows():
+        for cell in row:
+            if cell.data_type == "f":
+                cell.data_type = "s"
+                cell.quotePrefix = True

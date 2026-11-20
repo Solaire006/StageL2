@@ -1,6 +1,9 @@
-Django>=6.1
-requests
-beautifulsoup4
-pandas
-openpyxl
-django-axes>=9
+# Exact versions = the server installs exactly what was tested.
+# To upgrade: change a version here, run `python manage.py test`, then commit.
+Django==6.1.3
+django-axes==9.0.0
+requests==2.34.2
+beautifulsoup4==4.15.0
+pandas==3.1.1
+openpyxl==3.1.5
+gunicorn==27.0.1   # production web server (replaces `runserver`)
